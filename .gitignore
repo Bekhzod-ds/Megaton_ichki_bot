@@ -1,5 +1,24 @@
+# 🔒 Secrets and Tokens
 token.pickle
 credentials.json
+oauth_creds.json
 .env
+
+# 🐍 Python cache
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# 🧪 Virtualenv (in case it's inside project)
+venv/
+.env/
+.venv/
+
+# 📝 OS/System files
+.DS_Store
+Thumbs.db
+
+# 🚀 Build/deploy
+*.log
+*.sqlite3
