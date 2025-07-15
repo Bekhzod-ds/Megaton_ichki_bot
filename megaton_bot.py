@@ -79,10 +79,7 @@ async def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
     print("✅ Bot is running on Render (async mode)...")
-    await app.initialize()
-    await app.start()
-    await app.updater.start_polling()
-    await app.updater.idle()
-
+    await app.run_polling()
+    
 if __name__ == "__main__":
     asyncio.run(main())
