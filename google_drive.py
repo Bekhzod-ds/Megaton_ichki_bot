@@ -1,35 +1,19 @@
 import os
 import mimetypes
-import pickle
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-from google.auth.transport.requests import Request
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google.oauth2.service_account import Credentials
 
-# Define the Drive access scope
-SCOPES = ['https://www.googleapis.com/auth/drive.file']
-
-# Load or refresh token
+# Load service account and initialize Google Drive API
 def get_drive_service():
-    creds = None
-    if os.path.exists('token.pickle'):
-        with open('token.pickle', 'rb') as token:
-            creds = pickle.load(token)
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file('oauth_creds.json', SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open('token.pickle', 'wb') as token:
-            pickle.dump(creds, token)
+    creds_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "credentials.json")
+    creds = Credentials.from_service_account_file(creds_path, scopes=['https://www.googleapis.com/auth/drive'])
     return build('drive', 'v3', credentials=creds)
 
-# Upload file
-def upload_file_to_drive(file_path, filename, folder_type):
+# Upload file to Google Drive
+def upload_file_to_drive(folder_type, filename, file_path):
     service = get_drive_service()
 
-    # These are your folder IDs from your personal Drive
     FOLDER_IDS = {
         'Yetkazmalar': '1OgmyEQV9sUoCNANzkCNzT5bewEs21WD9',
         "To'lovlar": '16B5DMoyt30xmuKulkDk7GgkkYj7_6bdo'
