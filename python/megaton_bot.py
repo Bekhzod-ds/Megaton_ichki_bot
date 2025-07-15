@@ -1,72 +1,81 @@
-from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
-from google_drive import upload_file_to_drive
 import os
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
+    Application, CommandHandler, CallbackQueryHandler,
+    MessageHandler, ContextTypes, filters
+)
+from google_drive import upload_file_to_drive
 from google_sheets import insert_screenshot_link
-import traceback
 
-TOKEN = "7958303937:AAFt0srBeyPyvX0Gsp7MAyaFChlYWvfK9Io"
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
-# START command
+user_sessions = {}
+
+# --- Start command ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [["📦 Yetkazmalar", "💰 To‘lovlar"]]
-    markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
-    await update.message.reply_text("Qaysi turdagi screenshot yuboriladi?", reply_markup=markup)
-    context.user_data.clear()
+    keyboard = [
+        [InlineKeyboardButton("📦 Yetkazmalar", callback_data="Yetkazmalar")],
+        [InlineKeyboardButton("💰 To'lovlar", callback_data="Tolovlar")]
+    ]
+    await update.message.reply_text(
+        "Qaysi turdagi buyurtmaga screenshot yuklamoqchisiz?",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
-# Handle text inputs (type + ID)
+# --- Handle buttons ---
+async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    chat_id = query.from_user.id
+
+    sheet_type = query.data
+    user_sessions[chat_id] = {'type': sheet_type}
+
+    await query.edit_message_text(
+        f"{sheet_type} uchun ID raqamini kiriting (masalan: 1)"
+    )
+
+# --- Handle text (Order ID input) ---
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.strip()
-
-    if text in ["📦 Yetkazmalar", "💰 To‘lovlar"]:
-        context.user_data['type'] = 'Yetkazmalar' if "Yetkazmalar" in text else "To'lovlar"
-        await update.message.reply_text("ID raqamini yuboring (faqat raqam):")
-    
-    elif text.isdigit() and 'type' in context.user_data:
-        context.user_data['id'] = text
-        await update.message.reply_text("✅ Qabul qilindi!\nEndi screenshot rasmni yuboring.")
-    
+    chat_id = update.effective_user.id
+    if chat_id in user_sessions and 'type' in user_sessions[chat_id]:
+        user_sessions[chat_id]['id'] = update.message.text.strip()
+        await update.message.reply_text("Endi suratni yuboring (jpg/png)")
     else:
-        await update.message.reply_text("Noto‘g‘ri format. Iltimos, /start buyrug‘i bilan qayta urinib ko‘ring.")
+        await update.message.reply_text("/start tugmasini bosib qayta urinib ko'ring.")
 
-# Handle photo uploads
+# --- Handle photo ---
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_user.id
+    if chat_id not in user_sessions or 'id' not in user_sessions[chat_id]:
+        await update.message.reply_text("Avval /start buyrug'ini yuboring.")
+        return
+
+    folder_type = user_sessions[chat_id]['type']
+    row_id = user_sessions[chat_id]['id']
+
     photo = update.message.photo[-1]
     file = await photo.get_file()
 
-    folder_type = context.user_data.get("type")
-    row_id = context.user_data.get("id")
-
-    if not folder_type or not row_id:
-        await update.message.reply_text("Avval /start orqali tur va ID yuboring.")
-        return
-
     filename = f"{folder_type}_{row_id}.jpg"
     temp_path = f"/tmp/{filename}"
-
-    await file.download_to_drive(custom_path=temp_path)
+    await file.download_to_drive(temp_path)
 
     try:
-        from google_drive import upload_file_to_drive
-        from google_sheets import insert_screenshot_link
-
-        drive_link = upload_file_to_drive(temp_path, filename, folder_type)
+        drive_link = upload_file_to_drive(folder_type, filename, temp_path)
         insert_screenshot_link(folder_type, row_id, drive_link)
-
-        await update.message.reply_text(f"📎 Screenshot saqlandi:\n{drive_link}")
+        await update.message.reply_text("✅ Screenshot yuklandi va jadvalga qo'shildi.")
     except Exception as e:
-        print(traceback.format_exc())  # 👈 print full stack trace to terminal
         await update.message.reply_text(f"Xatolik yuz berdi:\n{e}")
-    finally:
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-# Main runner
+
+# --- Main ---
 if __name__ == "__main__":
-    app = Application.builder().token(TOKEN).build()
+    app = Application.builder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(handle_buttons))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
-    print("Bot is running...")
+    print("✅ Bot is running on Render...")
     app.run_polling()
