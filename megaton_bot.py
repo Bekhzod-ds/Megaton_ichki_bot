@@ -1,4 +1,5 @@
 import os
+import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
@@ -11,7 +12,7 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
 user_sessions = {}
 
-# --- Start command ---
+# --- Start Command ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("📦 Yetkazmalar", callback_data="Yetkazmalar")],
@@ -22,7 +23,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-# --- Handle buttons ---
+# --- Handle Button Selection ---
 async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -35,20 +36,20 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"{sheet_type} uchun ID raqamini kiriting (masalan: 1)"
     )
 
-# --- Handle text (Order ID input) ---
+# --- Handle Text (Row ID) ---
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_user.id
     if chat_id in user_sessions and 'type' in user_sessions[chat_id]:
         user_sessions[chat_id]['id'] = update.message.text.strip()
-        await update.message.reply_text("Endi suratni yuboring (jpg/png)")
+        await update.message.reply_text("✅ Endi suratni yuboring (jpg/png)")
     else:
-        await update.message.reply_text("/start tugmasini bosib qayta urinib ko'ring.")
+        await update.message.reply_text("⚠️ Iltimos, avval /start buyrug'ini bosing.")
 
-# --- Handle photo ---
+# --- Handle Photo Upload ---
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_user.id
     if chat_id not in user_sessions or 'id' not in user_sessions[chat_id]:
-        await update.message.reply_text("Avval /start buyrug'ini yuboring.")
+        await update.message.reply_text("⚠️ Avval /start buyrug'ini yuboring.")
         return
 
     folder_type = user_sessions[chat_id]['type']
@@ -66,10 +67,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         insert_screenshot_link(folder_type, row_id, drive_link)
         await update.message.reply_text("✅ Screenshot yuklandi va jadvalga qo'shildi.")
     except Exception as e:
-        await update.message.reply_text(f"Xatolik yuz berdi:\n{e}")
+        await update.message.reply_text(f"❌ Xatolik yuz berdi:\n{e}")
 
-# --- Main ---
-if __name__ == "__main__":
+# --- Async Entry Point ---
+async def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
@@ -77,5 +78,11 @@ if __name__ == "__main__":
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
-    print("✅ Bot is running on Render...")
-    app.run_polling()
+    print("✅ Bot is running on Render (async mode)...")
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling()
+    await app.updater.idle()
+
+if __name__ == "__main__":
+    asyncio.run(main())
