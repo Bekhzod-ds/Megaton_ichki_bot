@@ -1,5 +1,6 @@
 import os
 import asyncio
+import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
@@ -8,9 +9,19 @@ from telegram.ext import (
 from google_drive import upload_file_to_drive
 from google_sheets import insert_screenshot_link
 
-BOT_TOKEN = os.environ["BOT_TOKEN"]
-WEBHOOK_URL = os.environ["WEBHOOK_URL"]
+# Setup logging
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
+# Load environment variables
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
 PORT = int(os.environ.get("PORT", 8443))
+
+if not BOT_TOKEN or not WEBHOOK_URL:
+    raise ValueError("Missing BOT_TOKEN or WEBHOOK_URL environment variables.")
 
 user_sessions = {}
 
@@ -60,19 +71,29 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         insert_screenshot_link(folder_type, row_id, drive_link)
         await update.message.reply_text("✅ Screenshot yuklandi va jadvalga qo'shildi.")
     except Exception as e:
+        logger.exception("Upload or sheet insert failed:")
         await update.message.reply_text(f"❌ Xatolik yuz berdi:\n{e}")
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
 
 # --- Entry Point ---
 async def main():
     app = Application.builder().token(BOT_TOKEN).build()
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(handle_buttons))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
     await app.bot.set_webhook(url=WEBHOOK_URL)
-    print(f"✅ Webhook set at {WEBHOOK_URL}")
-    await app.run_webhook(listen="0.0.0.0", port=PORT, webhook_url=WEBHOOK_URL)
+    logger.info(f"✅ Webhook set at {WEBHOOK_URL}")
+    
+    await app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        webhook_url=WEBHOOK_URL
+    )
 
 if __name__ == "__main__":
     import nest_asyncio
