@@ -5,7 +5,7 @@ from flask import Flask, request
 from google_drive import upload_file_to_drive
 
 API_TOKEN = os.environ.get("BOT_TOKEN")
-bot = telebot.TeleBot(API_TOKEN)
+bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
 
 # Example command
@@ -45,5 +45,5 @@ def index():
 
 if __name__ == "__main__":
     bot.remove_webhook()
-    bot.set_webhook(url=f"{os.environ.get('WEBHOOK_URL')}/{API_TOKEN}")
+    bot.set_webhook(url=f"{os.environ.get('WEBHOOK_URL')}/{BOT_TOKEN}")
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
