@@ -1,38 +1,49 @@
+# bot.py
 import os
-import mimetypes
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
-from google.oauth2.service_account import Credentials
+import telebot
+from flask import Flask, request
+from google_drive import upload_file_to_drive
 
-# Load service account and initialize Google Drive API
-def get_drive_service():
-    creds_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "credentials.json")
-    creds = Credentials.from_service_account_file(creds_path, scopes=['https://www.googleapis.com/auth/drive'])
-    return build('drive', 'v3', credentials=creds)
+API_TOKEN = os.environ.get("BOT_TOKEN")
+bot = telebot.TeleBot(API_TOKEN)
+app = Flask(__name__)
 
-# Upload file to Google Drive
-def upload_file_to_drive(folder_type, filename, file_path):
-    service = get_drive_service()
+# Example command
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    bot.reply_to(message, "Welcome to Megaton Delivery Bot!")
 
-    FOLDER_IDS = {
-        'Yetkazmalar': '1OgmyEQV9sUoCNANzkCNzT5bewEs21WD9',
-        "To'lovlar": '16B5DMoyt30xmuKulkDk7GgkkYj7_6bdo'
-    }
+# Example photo/file handler
+@bot.message_handler(content_types=['photo', 'document'])
+def handle_media(message):
+    try:
+        file_info = bot.get_file(message.photo[-1].file_id if message.photo else message.document.file_id)
+        file_path = file_info.file_path
+        downloaded_file = bot.download_file(file_path)
 
-    folder_id = FOLDER_IDS[folder_type]
-    mimetype = mimetypes.guess_type(file_path)[0]
+        local_filename = f"temp_{message.chat.id}.jpg"
+        with open(local_filename, 'wb') as f:
+            f.write(downloaded_file)
 
-    file_metadata = {
-        'name': filename,
-        'parents': [folder_id]
-    }
+        drive_url = upload_file_to_drive("Yetkazmalar", local_filename, local_filename)
+        bot.reply_to(message, f"✅ File uploaded: {drive_url}")
 
-    media = MediaFileUpload(file_path, mimetype=mimetype)
-    file = service.files().create(
-        body=file_metadata,
-        media_body=media,
-        fields='id'
-    ).execute()
+        os.remove(local_filename)
+    except Exception as e:
+        bot.reply_to(message, f"❌ Error: {e}")
 
-    file_id = file.get('id')
-    return f"https://drive.google.com/file/d/{file_id}/view"
+@app.route(f"/{API_TOKEN}", methods=['POST'])
+def webhook():
+    json_str = request.get_data().decode('UTF-8')
+    update = telebot.types.Update.de_json(json_str)
+    bot.process_new_updates([update])
+    return '', 200
+
+@app.route("/", methods=['GET'])
+def index():
+    return "Bot is running!", 200
+
+if __name__ == "__main__":
+    bot.remove_webhook()
+    bot.set_webhook(url=f"{os.environ.get('WEBHOOK_URL')}/{API_TOKEN}")
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
