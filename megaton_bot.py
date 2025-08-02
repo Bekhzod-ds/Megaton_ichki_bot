@@ -1,5 +1,3 @@
-# megaton_bot.py
-
 import os
 import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -31,13 +29,8 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     chat_id = query.from_user.id
-
-    sheet_type = query.data
-    user_sessions[chat_id] = {'type': sheet_type}
-
-    await query.edit_message_text(
-        f"{sheet_type} uchun ID raqamini kiriting (masalan: 1)"
-    )
+    user_sessions[chat_id] = {'type': query.data}
+    await query.edit_message_text(f"{query.data} uchun ID raqamini kiriting (masalan: 1)")
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_user.id
@@ -69,10 +62,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Xatolik yuz berdi:\n{e}")
 
-# --- Webhook Entrypoint ---
+# --- Entry Point ---
 async def main():
     app = Application.builder().token(BOT_TOKEN).build()
-
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(handle_buttons))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
@@ -80,12 +72,7 @@ async def main():
 
     await app.bot.set_webhook(url=WEBHOOK_URL)
     print(f"✅ Webhook set at {WEBHOOK_URL}")
-
-    await app.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        webhook_url=WEBHOOK_URL
-    )
+    await app.run_webhook(listen="0.0.0.0", port=PORT, webhook_url=WEBHOOK_URL)
 
 if __name__ == "__main__":
     import nest_asyncio
