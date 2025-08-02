@@ -2,7 +2,7 @@
 import os
 import telebot
 from flask import Flask, request
-from google_drive import upload_file_to_drive
+# from google_drive import upload_file_to_drive 
 
 API_TOKEN = os.environ.get("BOT_TOKEN")
 bot = telebot.TeleBot(BOT_TOKEN)
