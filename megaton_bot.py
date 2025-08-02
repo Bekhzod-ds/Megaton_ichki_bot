@@ -1,3 +1,5 @@
+# megaton_bot.py
+
 import os
 import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -8,11 +10,13 @@ from telegram.ext import (
 from google_drive import upload_file_to_drive
 from google_sheets import insert_screenshot_link
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
+BOT_TOKEN = os.environ["BOT_TOKEN"]
+WEBHOOK_URL = os.environ["WEBHOOK_URL"]
+PORT = int(os.environ.get("PORT", 8443))
 
 user_sessions = {}
 
-# --- Start Command ---
+# --- Handlers ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("📦 Yetkazmalar", callback_data="Yetkazmalar")],
@@ -23,7 +27,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-# --- Handle Button Selection ---
 async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -36,7 +39,6 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"{sheet_type} uchun ID raqamini kiriting (masalan: 1)"
     )
 
-# --- Handle Text (Row ID) ---
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_user.id
     if chat_id in user_sessions and 'type' in user_sessions[chat_id]:
@@ -45,7 +47,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("⚠️ Iltimos, avval /start buyrug'ini bosing.")
 
-# --- Handle Photo Upload ---
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_user.id
     if chat_id not in user_sessions or 'id' not in user_sessions[chat_id]:
@@ -54,7 +55,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     folder_type = user_sessions[chat_id]['type']
     row_id = user_sessions[chat_id]['id']
-
     photo = update.message.photo[-1]
     file = await photo.get_file()
 
@@ -69,7 +69,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Xatolik yuz berdi:\n{e}")
 
-# --- Async Entry Point ---
+# --- Webhook Entrypoint ---
 async def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
@@ -78,12 +78,16 @@ async def main():
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
-    print("✅ Bot is running on Render (async mode)...")
-    await app.run_polling()
-    
+    await app.bot.set_webhook(url=WEBHOOK_URL)
+    print(f"✅ Webhook set at {WEBHOOK_URL}")
+
+    await app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        webhook_url=WEBHOOK_URL
+    )
+
 if __name__ == "__main__":
     import nest_asyncio
-    import asyncio
-
     nest_asyncio.apply()
     asyncio.run(main())
