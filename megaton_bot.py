@@ -32,7 +32,7 @@ user_sessions = {}
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("📦 Yetkazmalar", callback_data="Yetkazmalar")],
-        [InlineKeyboardButton("💰 To'lovlar", callback_data="Tolovlar")]
+        [InlineKeyboardButton("💰 To'lovlar", callback_data="To'lovlar")]
     ]
     await update.message.reply_text(
         "Qaysi turdagi buyurtmaga screenshot yuklamoqchisiz?",
