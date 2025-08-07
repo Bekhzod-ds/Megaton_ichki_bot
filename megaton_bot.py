@@ -1,5 +1,6 @@
 import os
 import asyncio
+import concurrent.futures
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -8,6 +9,8 @@ from telegram.ext import (
 )
 from google_drive import upload_file_to_drive
 from google_sheets import insert_screenshot_link
+
+executor = concurrent.futures.ThreadPoolExecutor()
 
 # Setup logging
 logging.basicConfig(
@@ -51,6 +54,11 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("⚠️ Iltimos, avval /start buyrug'ini bosing.")
 
+import asyncio
+import concurrent.futures
+
+executor = concurrent.futures.ThreadPoolExecutor()
+
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_user.id
     if chat_id not in user_sessions or 'id' not in user_sessions[chat_id]:
@@ -67,11 +75,15 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await file.download_to_drive(temp_path)
 
     try:
-        drive_link = upload_file_to_drive(folder_type, filename, temp_path)
-        insert_screenshot_link(folder_type, row_id, drive_link)
+        logger.info(f"Uploading file: {temp_path}")
+        loop = asyncio.get_event_loop()
+        drive_link = await loop.run_in_executor(executor, upload_file_to_drive, folder_type, filename, temp_path)
+        logger.info(f"Uploaded. Link: {drive_link}")
+
+        await loop.run_in_executor(executor, insert_screenshot_link, folder_type, row_id, drive_link)
         await update.message.reply_text("✅ Screenshot yuklandi va jadvalga qo'shildi.")
     except Exception as e:
-        logger.exception("Upload or sheet insert failed:")
+        logger.exception("❌ Upload or sheet insert failed")
         await update.message.reply_text(f"❌ Xatolik yuz berdi:\n{e}")
     finally:
         if os.path.exists(temp_path):
